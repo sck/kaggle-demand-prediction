@@ -5,6 +5,8 @@
 
 
 get_ipython().magic('matplotlib inline')
+get_ipython().magic('reload_ext autoreload')
+get_ipython().magic('autoreload 2')
 import os.path
 from fastai import *
 
@@ -22,6 +24,8 @@ import numpy as np
 
 from fastai.text import *
 PATH=Path('data')
+
+get_ipython().magic('debug')
 
 
 # In[4]:
@@ -73,27 +77,33 @@ ru_vecd = get_vecs('ru', ru_vecs)
 # In[11]:
 
 
+ru_vecd = pickle.load(open(PATH/f'wiki.ru.pkl', 'rb'))
+
+
+# In[12]:
+
+
 ft_words = ru_vecs.get_words(include_freq=True)
 ft_word_dict = {k:v for k,v in zip(*ft_words)}
 ft_words = sorted(ft_word_dict.keys(), key=lambda x: ft_word_dict[x])
 len(ft_words)
 
 
-# In[12]:
+# In[13]:
 
 
 dim_ru_vec = len(ru_vecd[','])
 dim_ru_vec
 
 
-# In[13]:
+# In[14]:
 
 
 ru_vecs = np.stack(list(ru_vecd.values()))
 ru_vecs.mean(), ru_vecs.std()
 
 
-# In[14]:
+# In[15]:
 
 
 len(test), len(train)
@@ -101,14 +111,14 @@ len(test), len(train)
 
 # Turning CSV into lines
 
-# In[15]:
+# In[16]:
 
 
 import re
 re.sub("[()]", " ", "foo(a)")
 
 
-# In[16]:
+# In[17]:
 
 
 #df = pd.DataFrame(columns=['text', "probability"])
@@ -117,6 +127,7 @@ text = []
 probability = []
 for i, r in train.iterrows():
     t = f'{r.region} {r.city} {r.parent_category_name} {r.category_name} {r.param_1} {r.param_2} {r.param_3} {r.title} {r.description} {r.price} {r.item_seq_number} {r.user_type} {"yes" if r.image else "no"}'
+    #t = f'{r.description}'
     p = r.deal_probability
     text.append(re.sub("[()]", " ", t))
     probability.append(p)
@@ -126,72 +137,72 @@ for i, r in train.iterrows():
 #train_processed = df
 
 
-# In[17]:
+# In[18]:
 
 
 pickle.dump(text, open('data/text.pkl', 'wb'))
 pickle.dump(probability, open('data/probability.pkl', 'wb'))
 
 
-# In[18]:
+# In[19]:
 
 
 text = pickle.load(open('data/text.pkl', 'rb'))
 probability = pickle.load(open('data/probability.pkl', 'rb'))
 
 
-# In[19]:
-
-
-text_tok = Tokenizer.proc_all_mp(partition_by_cores(text))
-
-
 # In[20]:
 
 
-text_tok[0]
+get_ipython().magic('time text_tok = Tokenizer.proc_all_mp(partition_by_cores(text))')
 
 
 # In[21]:
 
 
-np.percentile([len(o) for o in text_tok], 90), np.percentile([len(o) for o in text_tok], 90)
+text_tok[0]
 
 
 # In[22]:
 
 
-keep = np.array([len(o) < 101 for o in text_tok])
+np.percentile([len(o) for o in text_tok], 90), np.percentile([len(o) for o in text_tok], 90)
 
 
 # In[23]:
+
+
+keep = np.array([len(o) < 101 for o in text_tok])
+
+
+# In[24]:
 
 
 text_tok = np.array(text_tok)[keep]
 probability = np.array(probability)[keep]
 
 
-# In[24]:
+# In[25]:
 
 
 pickle.dump(text_tok, open('data/text_tok.pkl', 'wb'))
 pickle.dump(probability, open('data/probability_k.pkl', 'wb'))
 
 
-# In[25]:
+# In[26]:
 
 
 text_tok=pickle.load(open('data/text_tok.pkl', 'rb'))
 probability=pickle.load(open('data/probability_k.pkl', 'rb'))
 
 
-# In[26]:
+# In[27]:
 
 
 len(probability), len(text_tok)
 
 
-# In[27]:
+# In[28]:
 
 
 def toks2ids(tok, pre):
@@ -209,13 +220,13 @@ def toks2ids(tok, pre):
     return ids, itos, stoi
 
 
-# In[28]:
+# In[29]:
 
 
 text_ids, text_itos, text_stoi = toks2ids(text_tok, 'text')
 
 
-# In[29]:
+# In[30]:
 
 
 def load_ids(pre):
@@ -225,13 +236,13 @@ def load_ids(pre):
     return ids, itos, stoi
 
 
-# In[30]:
+# In[31]:
 
 
 text_ids, text_itos, text_stoi = load_ids('text')
 
 
-# In[31]:
+# In[32]:
 
 
 len(probability), len(text_ids)
@@ -239,7 +250,7 @@ len(probability), len(text_ids)
 
 # Training and validation data set
 
-# In[32]:
+# In[33]:
 
 
 np.random.seed(42)
@@ -251,7 +262,19 @@ val_y = probability[~trn_keep]
 len(trn), len(val)
 
 
-# In[51]:
+# In[158]:
+
+
+trn
+
+
+# In[157]:
+
+
+trn_y
+
+
+# In[34]:
 
 
 class Seq2SeqDataset(Dataset):
@@ -260,47 +283,47 @@ class Seq2SeqDataset(Dataset):
     def __len__(self): return len(self.x)
 
 
-# In[52]:
+# In[35]:
 
 
 int(0.2312)
 
 
-# In[53]:
+# In[36]:
 
 
 #trn_y = trn.iloc[:,-1]
 #val_y = val.iloc[:,-1]
 
 
-# In[54]:
+# In[37]:
 
 
 #trn = trn.iloc[:, :-1]
 #val = val.iloc[:, :-1]
 
 
-# In[55]:
+# In[38]:
 
 
 trn_ds = Seq2SeqDataset(trn, trn_y)
 val_ds = Seq2SeqDataset(val, val_y)
 
 
-# In[56]:
+# In[233]:
 
 
 batch_size=125
 
 
-# In[57]:
+# In[234]:
 
 
 trn_samp = SortishSampler(trn, key=lambda x: len(trn[x]), bs=batch_size)
 val_samp = SortSampler(val, key=lambda x: len(val[x]))
 
 
-# In[58]:
+# In[235]:
 
 
 trn_dl = DataLoader(trn_ds, batch_size, transpose = True, transpose_y=True, num_workers=1, pad_idx=1, pre_pad=False,
@@ -316,7 +339,7 @@ md = ModelData(PATH, trn_dl, val_dl)
 
 
 
-# In[59]:
+# In[236]:
 
 
 def create_emb(vecs, itos, em_sz):
@@ -330,13 +353,13 @@ def create_emb(vecs, itos, em_sz):
     return emb
 
 
-# In[60]:
+# In[237]:
 
 
-num_hidden_features, num_layers = 256, 2
+num_hidden_features, num_layers = 16, 2
 
 
-# In[61]:
+# In[238]:
 
 
 class Seq2SeqRNN(nn.Module):
@@ -378,7 +401,7 @@ class Seq2SeqRNN(nn.Module):
       
 
 
-# In[62]:
+# In[239]:
 
 
 def seq2seq_loss(input, target):
@@ -388,15 +411,28 @@ def seq2seq_loss(input, target):
     if sequence_length > sequence_length_in: input = F.pad(input, (0, 0, 0, 0, 0, sequence_length-sequence_length_in))
     input = input[:sequence_length]
     return F.cross_entropy(input.view(-1, nc), target.view(-1)) 
+    #return F.mse_loss(input.view(-1, nc), target.view(-1)) 
 
 
-# In[63]:
+# In[ ]:
+
+
+
+
+
+# In[240]:
 
 
 opt_fn = partial(optim.Adam, betas=(0.8, 0.99))
 
 
-# In[64]:
+# In[241]:
+
+
+dim_ru_vec, len(text_itos)
+
+
+# In[242]:
 
 
 rnn = Seq2SeqRNN(ru_vecd, text_itos, dim_ru_vec, ru_vecd, probability, 1, num_hidden_features, 101)
@@ -404,32 +440,38 @@ learn = RNN_Learner(md, SingleModel(to_gpu(rnn)), opt_fn=opt_fn)
 learn.crit = seq2seq_loss
 
 
-# In[65]:
+# In[243]:
 
 
-learn.lr_find()
-learn.sched.plot()
+#learn.lr_find()
+#learn.sched.plot()
 
 
-# In[68]:
+# In[244]:
 
 
 learning_rate = 10e-2
 
 
-# In[69]:
+# In[245]:
+
+
+#??learn.fit
+
+
+# In[246]:
 
 
 learn.fit(learning_rate, 1, cycle_len=12, use_clr=(20, 10))
 
 
-# In[71]:
+# In[ ]:
 
 
 learn.save("initial.m")
 
 
-# In[72]:
+# In[ ]:
 
 
 learn.load("initial.m")
@@ -437,7 +479,7 @@ learn.load("initial.m")
 
 # Test
 
-# In[73]:
+# In[ ]:
 
 
 x, y = next(iter(val_dl))
@@ -445,7 +487,7 @@ probs = learn.model(V(x))
 preds = to_np(probs.max(2)[1])
 
 
-# In[80]:
+# In[ ]:
 
 
 str(10)
